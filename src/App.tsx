@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Header } from './components/Header';
 import { DynamicUrlBar } from './components/DynamicUrlBar';
 import { MediaHub } from './components/MediaHub/MediaHub';
@@ -496,6 +497,7 @@ export default function App() {
         onExecuteCleanup={handleExecuteCleanup}
         onSeedSampleData={handleSeedSampleData}
       />
+      <SpeedInsights />
     </div>
   );
 }
