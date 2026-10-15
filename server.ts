@@ -859,8 +859,21 @@ app.get('/api/download', async (req: Request, res: Response) => {
       return res.send(content);
     }
 
-    // Direct remote stream proxy with Range header support
-    if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+    // Direct remote stream proxy with Range header support.
+    // Validate the URL before fetching so malformed input never reaches the proxy.
+    let sourceUrl: URL | null = null;
+    if (typeof url === 'string' && url.trim()) {
+      try {
+        sourceUrl = new URL(url);
+        if (!['http:', 'https:'].includes(sourceUrl.protocol)) {
+          return res.status(400).json({ error: 'Only HTTP and HTTPS media URLs are supported.' });
+        }
+      } catch {
+        return res.status(400).json({ error: 'The media URL is malformed.' });
+      }
+    }
+
+    if (sourceUrl) {
       try {
         const fetchHeaders: Record<string, string> = {
           'User-Agent':
@@ -872,7 +885,7 @@ app.get('/api/download', async (req: Request, res: Response) => {
           fetchHeaders['Range'] = req.headers.range;
         }
 
-        const remoteRes = await fetch(url, {
+        const remoteRes = await fetch(sourceUrl.href, {
           headers: fetchHeaders,
           signal: AbortSignal.timeout(12000),
         });

@@ -99,9 +99,14 @@ export const MediaHub: React.FC<MediaHubProps> = ({
     if (downloading) return;
     const isAudio = activeCategory === 'audio';
     const isImage = activeCategory === 'image' || activeCategory === 'gallery';
-    const source = isImage ? data.thumbnail : data.directMediaUrl;
+    const matchingAsset = isImage
+      ? allAssets.find((asset) => asset.category === 'image')
+      : isAudio
+      ? allAssets.find((asset) => asset.category === 'audio')
+      : allAssets.find((asset) => asset.category === 'video');
+    const source = isImage ? data.thumbnail || matchingAsset?.url : data.directMediaUrl || matchingAsset?.url;
 
-    if (!source) {
+    if (!source || !/^https?:\/\//i.test(source)) {
       setDownloadError('No downloadable stream was found for this link. Try a direct media URL or another source.');
       return;
     }
@@ -134,7 +139,8 @@ export const MediaHub: React.FC<MediaHubProps> = ({
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(objectUrl);
+      // Keep the object URL alive long enough for Safari and Chromium to finish the save.
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
       setDownloadComplete(true);
       onStartDownload({ url: source, title: isImage ? `${data.title} (Artwork)` : data.title, author: data.author, thumbnail: data.thumbnail, platform: data.platform, type: isImage ? 'asset' : isAudio ? 'audio' : 'video', format, resolution, size, downloadUrl });
       window.setTimeout(() => setDownloadComplete(false), 5000);
@@ -167,8 +173,20 @@ export const MediaHub: React.FC<MediaHubProps> = ({
       ? selectedAudio.quality
       : selectedVideo.resolution;
 
+    const matchingAsset = isImage
+      ? allAssets.find((asset) => asset.category === 'image')
+      : isAudio
+      ? allAssets.find((asset) => asset.category === 'audio')
+      : allAssets.find((asset) => asset.category === 'video');
+    const source = isImage ? data.thumbnail || matchingAsset?.url : data.directMediaUrl || matchingAsset?.url;
+
+    if (!source || !/^https?:\/\//i.test(source)) {
+      setDownloadError('This media does not expose a downloadable source yet. Analyze a direct media URL instead.');
+      return;
+    }
+
     onAddToQueue({
-      url: isImage ? data.thumbnail : data.url,
+      url: source,
       title: isImage ? `${data.title} (Artwork)` : data.title,
       author: data.author,
       thumbnail: data.thumbnail,
