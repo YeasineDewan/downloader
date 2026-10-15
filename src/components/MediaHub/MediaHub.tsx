@@ -81,6 +81,7 @@ export const MediaHub: React.FC<MediaHubProps> = ({
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadSpeed, setDownloadSpeed] = useState('');
   const [downloadComplete, setDownloadComplete] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // Group assets
   const allAssets: ScrapedSiteAsset[] = data.allAssets || [];
@@ -93,86 +94,55 @@ export const MediaHub: React.FC<MediaHubProps> = ({
   // Total image count including master artwork thumbnail
   const totalImageCount = Math.max(1, imageAssets.length + (data.thumbnail ? 1 : 0));
 
-  // Handle Main Download
-  const handleDownload = () => {
+  // Fetch the actual server response before recording a completed download.
+  const handleDownload = async () => {
     if (downloading) return;
-    setDownloading(true);
-    setDownloadProgress(0);
-    setDownloadSpeed('18.5 MB/s');
-    setDownloadComplete(false);
-
     const isAudio = activeCategory === 'audio';
     const isImage = activeCategory === 'image' || activeCategory === 'gallery';
+    const source = isImage ? data.thumbnail : data.directMediaUrl;
 
-    const format = isImage
-      ? 'jpg'
-      : isAudio
-      ? selectedAudio.container.toLowerCase()
-      : advancedSettings.convertToGif
-      ? 'gif'
-      : selectedVideo.container.toLowerCase();
+    if (!source) {
+      setDownloadError('No downloadable stream was found for this link. Try a direct media URL or another source.');
+      return;
+    }
 
-    const size = isImage
-      ? '1.8 MB'
-      : isAudio
-      ? selectedAudio.estimatedSize
-      : selectedVideo.estimatedSize;
+    const format = isImage ? 'jpg' : isAudio ? selectedAudio.container.toLowerCase() : advancedSettings.convertToGif ? 'gif' : selectedVideo.container.toLowerCase();
+    const size = isImage ? '1.8 MB' : isAudio ? selectedAudio.estimatedSize : selectedVideo.estimatedSize;
+    const resolution = isImage ? '1920x1080' : isAudio ? selectedAudio.quality : selectedVideo.resolution;
+    const downloadUrl = `/api/download?url=${encodeURIComponent(source)}&title=${encodeURIComponent(data.title)}&format=${format}&resolution=${encodeURIComponent(resolution)}&type=${isImage ? 'image' : isAudio ? 'audio' : 'video'}`;
 
-    const resolution = isImage
-      ? '1920x1080'
-      : isAudio
-      ? selectedAudio.quality
-      : selectedVideo.resolution;
+    setDownloading(true);
+    setDownloadError(null);
+    setDownloadComplete(false);
+    setDownloadProgress(15);
+    setDownloadSpeed('Preparing secure transfer…');
 
-    let current = 0;
-    const interval = setInterval(() => {
-      current += Math.floor(Math.random() * 15) + 12;
-      if (current >= 100) {
-        current = 100;
-        clearInterval(interval);
-        setDownloadProgress(100);
-        setDownloading(false);
-        setDownloadComplete(true);
-
-        const targetDownloadSource = isImage
-          ? data.thumbnail
-          : data.directMediaUrl || data.url;
-
-        const downloadUrl = `/api/download?url=${encodeURIComponent(
-          targetDownloadSource
-        )}&title=${encodeURIComponent(data.title)}&format=${format}&resolution=${resolution}&type=${
-          isImage ? 'image' : isAudio ? 'audio' : 'video'
-        }`;
-
-        const anchor = document.createElement('a');
-        anchor.href = downloadUrl;
-        anchor.download = `${data.title.replace(/[/\\?%*:|"<>]/g, '_')}${
-          isImage ? '_Artwork' : ''
-        }.${format}`;
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
-
-        onStartDownload({
-          url: isImage ? data.thumbnail : data.url,
-          title: isImage ? `${data.title} (Artwork)` : data.title,
-          author: data.author,
-          thumbnail: data.thumbnail,
-          platform: data.platform,
-          type: isImage ? 'asset' : isAudio ? 'audio' : 'video',
-          format,
-          resolution,
-          size,
-          downloadUrl,
-        });
-
-        setTimeout(() => setDownloadComplete(false), 5000);
-      } else {
-        setDownloadProgress(current);
-        const randomSpeed = (Math.random() * 8 + 18).toFixed(1);
-        setDownloadSpeed(`${randomSpeed} MB/s`);
+    try {
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || `Download failed (${response.status})`);
       }
-    }, 180);
+      const blob = await response.blob();
+      if (!blob.size) throw new Error('The server returned an empty file.');
+      setDownloadProgress(100);
+      setDownloadSpeed('Ready');
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = `${data.title.replace(/[/\\?%*:|"<>]/g, '_')}${isImage ? '_Artwork' : ''}.${format}`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      setDownloadComplete(true);
+      onStartDownload({ url: source, title: isImage ? `${data.title} (Artwork)` : data.title, author: data.author, thumbnail: data.thumbnail, platform: data.platform, type: isImage ? 'asset' : isAudio ? 'audio' : 'video', format, resolution, size, downloadUrl });
+      window.setTimeout(() => setDownloadComplete(false), 5000);
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : 'Download failed. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleQueueCurrent = () => {
@@ -387,6 +357,12 @@ export const MediaHub: React.FC<MediaHubProps> = ({
       {/* 5. Master Download Execution Zone */}
       {(activeCategory === 'video' || activeCategory === 'audio' || activeCategory === 'image') && (
         <div className="pt-4 border-t border-white/[0.08] space-y-3">
+          {downloadError && (
+            <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-red-400/20 bg-red-950/30 px-4 py-3 text-xs text-red-200">
+              <span>{downloadError}</span>
+              <button type="button" onClick={() => setDownloadError(null)} className="text-red-300 hover:text-white" aria-label="Dismiss download error">Dismiss</button>
+            </div>
+          )}
           {downloading ? (
             <div className="p-4 rounded-2xl bg-neutral-950/80 border border-white/10 space-y-2">
               <div className="flex items-center justify-between text-xs text-neutral-300">

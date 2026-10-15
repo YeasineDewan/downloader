@@ -4,15 +4,27 @@
   :root {
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+    --background: #0d0d12;
+    --surface: #15151c;
+    --surface-raised: #1d1d27;
+    --border: rgba(255, 255, 255, 0.09);
+    --muted: #9696a5;
+    --accent: #c8a86b;
+    --accent-strong: #e0bf7b;
+    --danger: #ef7777;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: #0A0B0E;
-    color: #EDEDF0;
+    background: radial-gradient(circle at 50% -10%, #272334 0%, var(--background) 46%);
+    color: #f3f1ed;
     overflow-x: hidden;
   }
 }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+
 
 /* Custom iOS style scrollbar */
 ::-webkit-scrollbar {

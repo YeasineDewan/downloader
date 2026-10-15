@@ -878,7 +878,11 @@ app.get('/api/download', async (req: Request, res: Response) => {
         });
 
         if (remoteRes.ok || remoteRes.status === 206) {
-          const contentType = remoteRes.headers.get('content-type') || 'application/octet-stream';
+          const contentType = (remoteRes.headers.get('content-type') || 'application/octet-stream').split(';')[0].toLowerCase();
+          const isHtml = contentType === 'text/html' || contentType === 'application/xhtml+xml';
+          if (isHtml) {
+            return res.status(422).json({ error: 'This link returned a webpage instead of a downloadable media file.' });
+          }
           res.setHeader('Content-Type', contentType);
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
           res.setHeader('Accept-Ranges', 'bytes');
@@ -903,6 +907,10 @@ app.get('/api/download', async (req: Request, res: Response) => {
       } catch (streamErr) {
         console.warn('Stream proxy fallback to container packaging:', streamErr);
       }
+    }
+
+    if (typeof url === 'string' && url.trim()) {
+      return res.status(502).json({ error: 'The source media could not be fetched. The link may require authentication or may have expired.' });
     }
 
     // Fallback compliant media package container
