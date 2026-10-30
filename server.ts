@@ -1068,10 +1068,37 @@ async function startServer() {
   // websocket upgrade. Vite can still inject its client in middleware mode,
   // so serve a no-op client explicitly to prevent reconnect errors in preview.
   app.get('/@vite/client', (_req, res) => {
-  res.type('application/javascript').send('/* HMR disabled for hosted preview */');
+    res.type('application/javascript').send(`
+      export function createHotContext() {
+        return {
+          accept() {},
+          dispose() {},
+          prune() {},
+          invalidate() {},
+          on() {},
+          off() {},
+          send() {},
+        };
+      }
+      export function updateStyle() {}
+      export function removeStyle() {}
+      export function injectQuery(url) { return url; }
+    `);
   });
   app.get('/@react-refresh', (_req, res) => {
-  res.type('application/javascript').send('/* React refresh disabled for hosted preview */');
+    res.type('application/javascript').send(`
+      const RefreshRuntime = {
+        injectIntoGlobalHook() {},
+        register() {},
+        createSignatureFunctionForTransform() { return (type) => type; },
+        performReactRefresh() {},
+      };
+      export default RefreshRuntime;
+      export const injectIntoGlobalHook = RefreshRuntime.injectIntoGlobalHook;
+      export const register = RefreshRuntime.register;
+      export const createSignatureFunctionForTransform = RefreshRuntime.createSignatureFunctionForTransform;
+      export const performReactRefresh = RefreshRuntime.performReactRefresh;
+    `);
   });
   app.use(vite.middlewares);
   } else {
