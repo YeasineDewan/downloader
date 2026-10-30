@@ -1056,14 +1056,12 @@ app.get('/api/proxy-media', async (req: Request, res: Response) => {
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
-    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
-    const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        // The hosted preview proxies the app over a different origin. Opt into HMR only explicitly;
-      // otherwise Vite repeatedly attempts a websocket that cannot be upgraded by the proxy.
-      hmr: isHmrDisabled || process.env.ENABLE_HMR !== 'true' ? false : undefined,
-      },
+  const vite = await createViteServer({
+  server: {
+  middlewareMode: true,
+  // The hosted preview cannot reliably upgrade Vite's websocket through its proxy.
+  hmr: false,
+  },
       appType: 'spa',
     });
     app.use(vite.middlewares);
