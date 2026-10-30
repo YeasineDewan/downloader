@@ -926,6 +926,12 @@ app.get('/api/download', async (req: Request, res: Response) => {
       return res.status(502).json({ error: 'The source media could not be fetched. The link may require authentication or may have expired.' });
     }
 
+      // Never return a fake media file: a successful download must contain real source bytes.
+    // This also prevents corrupted files from being presented as completed downloads.
+    if (!sourceUrl) {
+      return res.status(400).json({ error: 'A downloadable media URL is required.' });
+    }
+
     // Fallback compliant media package container
     const mimeMap: Record<string, string> = {
       mp3: 'audio/mpeg',
@@ -1054,7 +1060,9 @@ async function startServer() {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: isHmrDisabled ? false : undefined,
+        // The hosted preview proxies the app over a different origin. Opt into HMR only explicitly;
+      // otherwise Vite repeatedly attempts a websocket that cannot be upgraded by the proxy.
+      hmr: isHmrDisabled || process.env.ENABLE_HMR !== 'true' ? false : undefined,
       },
       appType: 'spa',
     });
