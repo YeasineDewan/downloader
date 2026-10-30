@@ -1064,7 +1064,16 @@ async function startServer() {
   },
       appType: 'spa',
     });
-    app.use(vite.middlewares);
+    // v0 previews proxy the app over HTTPS and cannot complete Vite's HMR
+  // websocket upgrade. Vite can still inject its client in middleware mode,
+  // so serve a no-op client explicitly to prevent reconnect errors in preview.
+  app.get('/@vite/client', (_req, res) => {
+  res.type('application/javascript').send('/* HMR disabled for hosted preview */');
+  });
+  app.get('/@react-refresh', (_req, res) => {
+  res.type('application/javascript').send('/* React refresh disabled for hosted preview */');
+  });
+  app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
